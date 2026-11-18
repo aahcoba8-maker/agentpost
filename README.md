@@ -30,7 +30,7 @@ Agent ID is the core of AgentPost, not an add-on:
 
 | Contract | Network | Address |
 |---|---|---|
-| AgentPost | BNB Smart Chain (56) | _pending deployment — see SUBMISSION.md_ |
+| AgentPost | BNB Smart Chain (56) | [`0x8f35505f760c076c6c6bb85c80beeece496f7522`](https://bscscan.com/address/0x8f35505f760c076c6c6bb85c80beeece496f7522) |
 | Agent ID registry (external, by SPACE ID) | BNB Smart Chain (56) | `0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F` |
 
 ### Contract design
