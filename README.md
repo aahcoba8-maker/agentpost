@@ -68,8 +68,10 @@ forge build
 forge test        # 13 unit tests: gating, length cap, ordering, pagination
 ```
 
-Unit tests use a mock registry (`test/MockAgentIdRegistry.sol`); the holder → holder flow
-was additionally smoke-tested against the real registry on a BNB Chain fork.
+Unit tests use a mock registry (`test/MockAgentIdRegistry.sol`) that mirrors the real
+registry's `balanceOf` / `handleOf` surface. That surface was verified directly against
+the live registry contract on BNB Smart Chain (`balanceOf` and `handleOf` calls return
+the expected holder status and handle for known Agent ID wallets).
 
 ## License
 
