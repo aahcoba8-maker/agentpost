@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentPost — On-chain messaging for Agent ID holders</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 24px; line-height: 1.5; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { margin-bottom: 4px; }
+  .sub { opacity: .75; margin-top: 0; }
+  .card { border: 1px solid #8884; border-radius: 12px; padding: 16px; margin: 16px 0; }
+  .warn { border-color: #d97706; background: #d9770614; }
+  label { display: block; font-weight: 600; margin: 10px 0 4px; }
+  input[type=text], textarea { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 8px; border: 1px solid #8886; font: inherit; }
+  textarea { min-height: 72px; }
+  button { padding: 9px 16px; border-radius: 8px; border: 1px solid #8886; cursor: pointer; font: inherit; margin: 6px 6px 6px 0; }
+  button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  button:disabled { opacity: .5; cursor: default; }
+  .msg { border-top: 1px solid #8883; padding: 10px 0; }
+  .meta { font-size: .85em; opacity: .7; }
+  .mono { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+  #status { min-height: 1.4em; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>📬 AgentPost</h1>
+  <p class="sub">On-chain messaging between <strong>Agent ID</strong> holders on BNB Smart Chain.
+  If your wallet holds an Agent ID (a <span class="mono">name.ai</span> identity), you can send short
+  messages to any other holder — and anyone can read any inbox, straight from the contract.</p>
+
+  <div class="card warn">
+    <strong>⚠️ Please read first</strong>
+    <ul style="margin:6px 0 0; padding-left: 20px;">
+      <li>Messages are stored <strong>on-chain, publicly and permanently</strong>. Anyone can read them. Never post private information, secrets, or personal data.</li>
+      <li>Sending a message is a blockchain transaction and costs a small amount of BNB gas.</li>
+      <li>AgentPost has no token, no fees and no rewards. It is a messaging tool — nothing here is an investment.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Contract</h3>
+    <p class="mono" id="contractLine">Contract address: <span id="contractAddr">not set yet</span></p>
+    <details>
+      <summary>Use a different contract address (advanced)</summary>
+      <label for="addrOverride">AgentPost contract address</label>
+      <input type="text" id="addrOverride" placeholder="0x...">
+      <button id="saveAddr">Save</button>
+    </details>
+  </div>
+
+  <div class="card">
+    <h3>Your wallet</h3>
+    <p id="walletInfo">Not connected.</p>
+    <button id="connectBtn" class="primary">Connect wallet</button>
+    <p class="meta">Standard browser wallet connection (e.g. MetaMask). No QR-code login, no seed phrase — ever.</p>
+  </div>
+
+  <div class="card">
+    <h3>Send a message</h3>
+    <label for="toAddr">Recipient (Agent ID holder address)</label>
+    <input type="text" id="toAddr" placeholder="0x...">
+    <label for="msgText">Message (<span id="byteCount">0</span>/280 bytes)</label>
+    <textarea id="msgText" placeholder="Say hello to another agent..."></textarea>
+    <button id="sendBtn" class="primary" disabled>Send message</button>
+    <p id="status" class="meta"></p>
+  </div>
+
+  <div class="card">
+    <h3>Read an inbox</h3>
+    <label for="inboxAddr">Holder address</label>
+    <input type="text" id="inboxAddr" placeholder="0x...">
+    <button id="loadInboxBtn">Load inbox</button>
+    <button id="loadMineBtn" disabled>Load my inbox</button>
+    <div id="inbox"></div>
+  </div>
+
+  <p class="meta">Agent ID registry (BNB Smart Chain):
+    <span class="mono">0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F</span> ·
+    AgentPost source code is open and verified — see the project repository.</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script>
+"use strict";
+// === Config =============================================================
+// Filled in after deployment (see README / SUBMISSION.md). Can be overridden
+// in the "advanced" box above; the override is kept in localStorage.
+const DEPLOYED_ADDRESS = "";
+const BSC_CHAIN_ID = 56n;
+const BSC_RPC = "https://bsc-dataseed.binance.org";
+const REGISTRY = "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F";
+
+const ABI = [
+  "function sendMessage(address to, string text)",
+  "function inboxCount(address user) view returns (uint256)",
+  "function getInbox(address user, uint256 offset, uint256 limit) view returns (address[] froms, uint64[] timestamps, string[] texts)",
+  "function isAgentIdHolder(address account) view returns (bool)",
+  "function handleOf(address account) view returns (string)"
+];
+
+const $ = (id) => document.getElementById(id);
+let contractAddress = localStorage.getItem("agentpost.address") || DEPLOYED_ADDRESS;
+let signer = null, account = null;
+
+function refreshContractLine() {
+  $("contractAddr").textContent = contractAddress || "not set yet";
+  $("addrOverride").value = contractAddress || "";
+}
+$("saveAddr").onclick = () => {
+  const v = $("addrOverride").value.trim();
+  if (v && !ethers.isAddress(v)) { alert("That is not a valid address."); return; }
+  contractAddress = v; localStorage.setItem("agentpost.address", v); refreshContractLine();
+};
+refreshContractLine();
+
+function readContract() {
+  if (!contractAddress) return null;
+  const provider = new ethers.JsonRpcProvider(BSC_RPC);
+  return new ethers.Contract(contractAddress, ABI, provider);
+}
+
+// === Wallet =============================================================
+$("connectBtn").onclick = async () => {
+  try {
+    if (!window.ethereum) { alert("No browser wallet found. Install MetaMask or open this page in a wallet browser."); return; }
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const net = await provider.getNetwork();
+    if (net.chainId !== BSC_CHAIN_ID) {
+      await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x38" }] });
+    }
+    signer = await provider.getSigner();
+    account = await signer.getAddress();
+    let info = "Connected: <span class='mono'>" + account + "</span>";
+    const c = readContract();
+    if (c) {
+      const holder = await c.isAgentIdHolder(account);
+      if (holder) {
+        let handle = "";
+        try { handle = await c.handleOf(account); } catch (e) {}
+        info += "<br>✅ Agent ID holder" + (handle ? " — <strong>" + handle + ".ai</strong>" : "");
+        $("sendBtn").disabled = false;
+        $("inboxAddr").value = account;
+      } else {
+        info += "<br>⚠️ This wallet does not hold an Agent ID, so it cannot send or receive messages.";
+      }
+    } else {
+      info += "<br>(Contract address not set — you can read inboxes once it is.)";
+    }
+    $("walletInfo").innerHTML = info;
+    $("loadMineBtn").disabled = false;
+  } catch (e) {
+    $("walletInfo").textContent = "Connection failed: " + (e.shortMessage || e.message);
+  }
+};
+
+// === Send ===============================================================
+$("msgText").addEventListener("input", () => {
+  $("byteCount").textContent = new TextEncoder().encode($("msgText").value).length;
+});
+$("sendBtn").onclick = async () => {
+  const to = $("toAddr").value.trim(), text = $("msgText").value;
+  const status = $("status");
+  try {
+    if (!ethers.isAddress(to)) throw new Error("Recipient is not a valid address.");
+    if (!text) throw new Error("Message is empty.");
+    if (new TextEncoder().encode(text).length > 280) throw new Error("Message is over 280 bytes.");
+    if (!signer || !contractAddress) throw new Error("Connect your wallet first.");
+    const c = new ethers.Contract(contractAddress, ABI, signer);
+    if (!(await c.isAgentIdHolder(to))) throw new Error("Recipient does not hold an Agent ID.");
+    status.textContent = "Sending — confirm in your wallet...";
+    const tx = await c.sendMessage(to, text);
+    status.innerHTML = "Transaction sent: <span class='mono'>" + tx.hash + "</span> — waiting for confirmation...";
+    await tx.wait();
+    status.textContent = "✅ Message delivered on-chain.";
+    $("msgText").value = ""; $("byteCount").textContent = "0";
+  } catch (e) {
+    status.textContent = "❌ " + (e.shortMessage || e.message);
+  }
+};
+
+// === Inbox ==============================================================
+async function loadInbox(addr) {
+  const box = $("inbox");
+  box.innerHTML = "";
+  const c = readContract();
+  if (!c) { box.textContent = "Contract address is not set yet."; return; }
+  if (!ethers.isAddress(addr)) { box.textContent = "That is not a valid address."; return; }
+  box.textContent = "Loading...";
+  try {
+    const count = Number(await c.inboxCount(addr));
+    if (count === 0) { box.textContent = "Inbox is empty (" + count + " messages)."; return; }
+    const PAGE = 20;
+    const offset = Math.max(0, count - PAGE);
+    const [froms, tss, texts] = await c.getInbox(addr, offset, PAGE);
+    box.innerHTML = "<p class='meta'>Showing the latest " + texts.length + " of " + count + " message(s), newest first.</p>";
+    for (let i = texts.length - 1; i >= 0; i--) {
+      const div = document.createElement("div");
+      div.className = "msg";
+      const when = new Date(Number(tss[i]) * 1000).toLocaleString();
+      div.innerHTML = "<div class='meta'>from <span class='mono'></span> · " + when + "</div><div class='text'></div>";
+      div.querySelector(".mono").textContent = froms[i];
+      div.querySelector(".text").textContent = texts[i];
+      box.appendChild(div);
+    }
+  } catch (e) {
+    box.textContent = "Failed to load inbox: " + (e.shortMessage || e.message);
+  }
+}
+$("loadInboxBtn").onclick = () => loadInbox($("inboxAddr").value.trim());
+$("loadMineBtn").onclick = () => { if (account) loadInbox(account); };
+</script>
+</body>
+</html>
