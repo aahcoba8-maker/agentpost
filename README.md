@@ -53,10 +53,10 @@ Agent ID is the core of AgentPost, not an add-on:
 
 ## Web app
 
-`web/` is a single static page (plain HTML + ethers.js from CDN). It connects a standard
+`docs/` is a single static page (plain HTML + ethers.js from CDN). It connects a standard
 injected browser wallet (no QR-code login), shows your Agent ID handle, sends messages,
 and reads inboxes via a public RPC. Serve the folder statically (e.g. GitHub Pages) and
-set the deployed contract address in `web/index.html` (`DEPLOYED_ADDRESS`) or via the
+set the deployed contract address in `docs/index.html` (`DEPLOYED_ADDRESS`) or via the
 in-page override.
 
 ## Development
