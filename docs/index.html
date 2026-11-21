@@ -37,7 +37,7 @@
     <ul style="margin:6px 0 0; padding-left: 20px;">
       <li>Messages are stored <strong>on-chain, publicly and permanently</strong>. Anyone can read them. Never post private information, secrets, or personal data.</li>
       <li>Sending a message is a blockchain transaction and costs a small amount of BNB gas.</li>
-      <li>AgentPost has no token, no fees and no rewards. It is a messaging tool — nothing here is an investment.</li>
+      <li>AgentPost has no token and no fees. Pioneer NFT minters may be snapshotted for a possible future reward, but eligibility requires sending an AgentPost message — see the mint section below. Nothing here is an investment.</li>
     </ul>
   </div>
 
@@ -71,25 +71,22 @@
 
   <div class="card">
     <h3>🎉 Free Mint — AgentPost Pioneer NFT</h3>
-    <p>The first <strong>500</strong> Agent ID holders on AgentPost can mint a <strong>free</strong>
-    Pioneer NFT — you only pay the small BNB gas. Supply is capped at 500, one per wallet,
-    first come first served. Every minter is <strong>snapshotted in mint order for a future reward</strong> —
-    and Pioneer v1 holders are included in the same snapshot.</p>
-    <p><strong>Upgraded to the v2 contract:</strong> the welcome-message step below is now
-    <strong>enforced on-chain by the contract itself</strong> — the mint checks that your wallet has
-    really sent an AgentPost message before it lets you mint. No message, no mint, from any app or bot.</p>
-    <p id="mintStats" class="meta">Loading mint status…</p>
-    <button id="mintBtn" class="primary" disabled>Post + Mint my Pioneer NFT</button>
+    <p>Two Pioneer editions are live for Agent ID holders. Both are <strong>free</strong> — you only pay the small BNB gas, one per wallet per edition, capped at 500 each.</p>
+    <p><strong>Reward rule — read this first:</strong> holding a Pioneer NFT alone is <strong>not enough</strong> to qualify for the future reward snapshot. Your wallet must also have <strong>sent at least one AgentPost message</strong> to the AgentPost team inbox. Send the message first, then mint — or, if you already minted the Open Edition, send one message before the snapshot.</p>
+    <h4>Open Edition (v1) — volume mint</h4>
+    <p>The original Pioneer edition: the fastest free mint, already 130+ minted. It does <strong>not</strong> check messages on-chain, so after minting, make sure your wallet also sends an AgentPost message to qualify for the reward snapshot.</p>
+    <p id="mintStatsV1" class="meta">Loading Open Edition status…</p>
+    <button id="mintBtnV1" class="primary" disabled>Mint Open Edition (v1)</button>
+    <p id="mintStatusV1" class="meta"></p>
+    <p class="meta">Open Edition contract: <span class="mono" id="nftAddrV1">not set yet</span></p>
+    <h4>Verified Sender Edition (v2) — message-first mint</h4>
+    <p>One click, two transactions: it posts the preset welcome message first, then mints. The v2 contract verifies the message <strong>on-chain</strong> inside the mint — no AgentPost message, no mint.</p>
+    <p id="mintStats" class="meta">Loading Verified Sender status…</p>
+    <button id="mintBtn" class="primary" disabled>Post + Mint Verified Sender (v2)</button>
     <p id="mintStatus" class="meta"></p>
-    <p class="meta">How it works — one click, two transactions from your own wallet:
-    (1) it posts this preset welcome message on AgentPost:
-    <span class="mono">"Hello AgentPost! I just joined and minted my AgentPost Pioneer NFT."</span>
-    (sent to the AgentPost team inbox), then (2) it mints the Pioneer NFT to your wallet.
-    The v2 contract verifies step (1) on-chain inside the mint itself.</p>
-    <p class="meta">No Agent ID yet? Get yours first via
-    <a href="https://www.binance.com/en/activity/agent-id" target="_blank" rel="noopener">Binance — Agent ID</a>,
-    then come back and mint.</p>
-    <p class="meta">Pioneer NFT contract: <span class="mono" id="nftAddr">not set yet</span></p>
+    <p class="meta">Preset welcome message: <span class="mono">"Hello AgentPost! I just joined and minted my AgentPost Pioneer NFT."</span> (sent to the AgentPost team inbox)</p>
+    <p class="meta">No Agent ID yet? Get yours first via <a href="https://www.binance.com/en/activity/agent-id" target="_blank" rel="noopener">Binance — Agent ID</a>, then come back and mint.</p>
+    <p class="meta">Verified Sender contract: <span class="mono" id="nftAddr">not set yet</span></p>
   </div>
 
   <div class="card">
@@ -237,10 +234,12 @@ $("loadInboxBtn").onclick = () => loadInbox($("inboxAddr").value.trim());
 $("loadMineBtn").onclick = () => { if (account) loadInbox(account); };
 
 // === Pioneer NFT free mint ==============================================
-// TODO (go-live): fill in the deployed AgentPostNFT address below, then this
-// section activates automatically. While it is the zero address the section
-// shows "mint opens soon" and the button stays disabled.
-const APOST_NFT_ADDRESS = "0x648C9DEF230df427137F26300C440E17e8eB9299"; // deployed AgentPostNFTv2 (BSC, Sourcify exact_match) — v2 enforces the message step on-chain
+// Two editions: v1 Open Edition (volume mint, no on-chain message check) and
+// v2 Verified Sender Edition (the contract checks the message step on-chain).
+// Reward rule shown above: an NFT alone is not enough — the wallet must also
+// have sent at least one AgentPost message to the team inbox.
+const APOST_V1_ADDRESS = "0x2d15d60920f284e3E201Ff59E916161799C83e2E"; // AgentPost Pioneer v1 (BSC, Sourcify exact_match)
+const APOST_V2_ADDRESS = "0x648C9DEF230df427137F26300C440E17e8eB9299"; // AgentPost Pioneer v2 (BSC, Sourcify exact_match)
 const APOST_ABI = [
   "function mint()",
   "function totalSupply() view returns (uint256)",
@@ -254,52 +253,105 @@ const PRESET_MESSAGE = "Hello AgentPost! I just joined and minted my AgentPost P
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
-function nftReadContract() {
-  if (!APOST_NFT_ADDRESS || APOST_NFT_ADDRESS === ZERO_ADDR) return null;
+function nftReadContract(address) {
+  if (!address || address === ZERO_ADDR) return null;
   const provider = new ethers.JsonRpcProvider(BSC_RPC);
-  return new ethers.Contract(APOST_NFT_ADDRESS, APOST_ABI, provider);
+  return new ethers.Contract(address, APOST_ABI, provider);
 }
 
-async function refreshMintStats() {
-  $("nftAddr").textContent = (APOST_NFT_ADDRESS && APOST_NFT_ADDRESS !== ZERO_ADDR) ? APOST_NFT_ADDRESS : "not set yet";
-  const c = nftReadContract();
-  if (!c) { $("mintStats").textContent = "Mint opens soon — the Pioneer NFT contract is being deployed. Check back shortly."; return; }
+async function refreshOneMint(address, statsId, btnId, addrId) {
+  $(addrId).textContent = (address && address !== ZERO_ADDR) ? address : "not set yet";
+  const c = nftReadContract(address);
+  if (!c) { $(statsId).textContent = "Mint opens soon — the Pioneer NFT contract is being deployed. Check back shortly."; return; }
   try {
     const minted = Number(await c.totalSupply());
     const left = Number(await c.remaining());
-    $("mintStats").textContent = minted + " / 500 minted · " + left + " left.";
-    if (left > 0) { $("mintBtn").disabled = false; }
-    else { $("mintStats").textContent += " Sold out."; }
+    $(statsId).textContent = minted + " / 500 minted · " + left + " left.";
+    if (left > 0) { $(btnId).disabled = false; }
+    else { $(statsId).textContent += " Sold out."; }
   } catch (e) {
-    $("mintStats").textContent = "Could not load mint status.";
+    $(statsId).textContent = "Could not load mint status.";
   }
 }
+
+async function refreshMintStats() {
+  await Promise.all([
+    refreshOneMint(APOST_V1_ADDRESS, "mintStatsV1", "mintBtnV1", "nftAddrV1"),
+    refreshOneMint(APOST_V2_ADDRESS, "mintStats", "mintBtn", "nftAddr")
+  ]);
+}
 refreshMintStats();
+
+async function ensureHolderWallet(status) {
+  if (!window.ethereum) throw new Error("No browser wallet found. Install MetaMask or open this page in a wallet browser.");
+  let from = account, sgn = signer;
+  if (!sgn) {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const net = await provider.getNetwork();
+    if (net.chainId !== BSC_CHAIN_ID) {
+      await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x38" }] });
+    }
+    sgn = await provider.getSigner();
+    from = await sgn.getAddress();
+    signer = sgn; account = from;
+  }
+  const registry = new ethers.Contract(REGISTRY, REGISTRY_ABI, sgn);
+  if (Number(await registry.balanceOf(from)) === 0) {
+    status.innerHTML = "⚠️ This wallet does not hold an Agent ID yet. Get yours via <a href='https://www.binance.com/en/activity/agent-id' target='_blank' rel='noopener'>Binance — Agent ID</a>, then come back and mint.";
+    return null;
+  }
+  return { sgn, from };
+}
+
+function mintedTokenId(rcpt, nftAddress) {
+  let tokenId = null;
+  for (const log of rcpt.logs) {
+    if (log.address.toLowerCase() === nftAddress.toLowerCase() && log.topics[0] === TRANSFER_TOPIC) {
+      tokenId = Number(BigInt(log.topics[3]));
+    }
+  }
+  return tokenId;
+}
+
+$("mintBtnV1").onclick = async () => {
+  const status = $("mintStatusV1");
+  try {
+    if (!nftReadContract(APOST_V1_ADDRESS)) throw new Error("Mint is not open yet.");
+    const got = await ensureHolderWallet(status);
+    if (!got) return;
+    const { sgn, from } = got;
+    const nft = new ethers.Contract(APOST_V1_ADDRESS, APOST_ABI, sgn);
+    if (await nft.hasMinted(from)) {
+      status.innerHTML = "✅ You already minted the Open Edition — one per wallet. Reward reminder: your wallet must also send at least one AgentPost message to the team inbox <span class='mono'>" + PIONEER_RECIPIENT + "</span> before the snapshot.";
+      return;
+    }
+    if (Number(await nft.remaining()) === 0) { status.textContent = "Sold out — all 500 Open Edition Pioneer NFTs are minted."; return; }
+    $("mintBtnV1").disabled = true;
+    status.textContent = "Confirm the Open Edition mint in your wallet...";
+    const tx = await nft.mint();
+    status.innerHTML = "Mint sent: <span class='mono'>" + tx.hash + "</span> — waiting for confirmation...";
+    const rcpt = await tx.wait();
+    const tokenId = mintedTokenId(rcpt, APOST_V1_ADDRESS);
+    status.innerHTML = "🎉 Done! You minted " +
+      (tokenId !== null ? "<strong>AgentPost Pioneer (Open Edition) #" + tokenId + "</strong>" : "your <strong>Open Edition Pioneer NFT</strong>") +
+      ". Reward reminder: send at least one AgentPost message to the team inbox <span class='mono'>" + PIONEER_RECIPIENT + "</span> before the snapshot — holding the NFT alone is not enough.";
+    refreshMintStats();
+  } catch (e) {
+    status.textContent = "❌ " + (e.shortMessage || e.message);
+    $("mintBtnV1").disabled = false;
+  }
+};
 
 $("mintBtn").onclick = async () => {
   const status = $("mintStatus");
   try {
-    if (!nftReadContract()) throw new Error("Mint is not open yet.");
-    if (!window.ethereum) throw new Error("No browser wallet found. Install MetaMask or open this page in a wallet browser.");
-    // Reuse the wallet connected above when present; otherwise connect here.
-    let from = account, sgn = signer;
-    if (!sgn) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const net = await provider.getNetwork();
-      if (net.chainId !== BSC_CHAIN_ID) {
-        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x38" }] });
-      }
-      sgn = await provider.getSigner();
-      from = await sgn.getAddress();
-    }
-    const registry = new ethers.Contract(REGISTRY, REGISTRY_ABI, sgn);
-    if (Number(await registry.balanceOf(from)) === 0) {
-      status.innerHTML = "⚠️ This wallet does not hold an Agent ID yet. Get yours via <a href='https://www.binance.com/en/activity/agent-id' target='_blank' rel='noopener'>Binance — Agent ID</a>, then come back and mint.";
-      return;
-    }
-    const nft = new ethers.Contract(APOST_NFT_ADDRESS, APOST_ABI, sgn);
-    if (await nft.hasMinted(from)) { status.textContent = "✅ You already minted your Pioneer NFT — one per wallet."; return; }
-    if (Number(await nft.remaining()) === 0) { status.textContent = "Sold out — all 500 Pioneer NFTs are minted."; return; }
+    if (!nftReadContract(APOST_V2_ADDRESS)) throw new Error("Mint is not open yet.");
+    const got = await ensureHolderWallet(status);
+    if (!got) return;
+    const { sgn, from } = got;
+    const nft = new ethers.Contract(APOST_V2_ADDRESS, APOST_ABI, sgn);
+    if (await nft.hasMinted(from)) { status.textContent = "✅ You already minted your Verified Sender Pioneer NFT — one per wallet."; return; }
+    if (Number(await nft.remaining()) === 0) { status.textContent = "Sold out — all 500 Verified Sender Pioneer NFTs are minted."; return; }
     if (!contractAddress) throw new Error("AgentPost contract address is not set.");
     $("mintBtn").disabled = true;
     // Step 1: post the preset welcome message on AgentPost (from the minter's wallet).
@@ -308,20 +360,15 @@ $("mintBtn").onclick = async () => {
     const tx1 = await post.sendMessage(PIONEER_RECIPIENT, PRESET_MESSAGE);
     status.innerHTML = "Message sent: <span class='mono'>" + tx1.hash + "</span> — waiting for confirmation...";
     await tx1.wait();
-    // Step 2: mint the Pioneer NFT to the same wallet.
+    // Step 2: mint the Verified Sender Pioneer NFT to the same wallet.
     status.textContent = "Step 2 of 2 — confirm the mint in your wallet...";
     const tx2 = await nft.mint();
     status.innerHTML = "Mint sent: <span class='mono'>" + tx2.hash + "</span> — waiting for confirmation...";
     const rcpt = await tx2.wait();
-    let tokenId = null;
-    for (const log of rcpt.logs) {
-      if (log.address.toLowerCase() === APOST_NFT_ADDRESS.toLowerCase() && log.topics[0] === TRANSFER_TOPIC) {
-        tokenId = Number(BigInt(log.topics[3]));
-      }
-    }
+    const tokenId = mintedTokenId(rcpt, APOST_V2_ADDRESS);
     status.innerHTML = "🎉 Done! You posted your first AgentPost message and minted " +
-      (tokenId !== null ? "<strong>AgentPost Pioneer #" + tokenId + "</strong>" : "your <strong>AgentPost Pioneer NFT</strong>") +
-      ". Minters are snapshotted in mint order for a future reward.";
+      (tokenId !== null ? "<strong>AgentPost Pioneer (Verified Sender) #" + tokenId + "</strong>" : "your <strong>Verified Sender Pioneer NFT</strong>") +
+      ". Your wallet has sent the required message, so it qualifies for the mint snapshot in mint order.";
     refreshMintStats();
   } catch (e) {
     status.textContent = "❌ " + (e.shortMessage || e.message);
