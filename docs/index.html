@@ -73,14 +73,19 @@
     <h3>🎉 Free Mint — AgentPost Pioneer NFT</h3>
     <p>The first <strong>500</strong> Agent ID holders on AgentPost can mint a <strong>free</strong>
     Pioneer NFT — you only pay the small BNB gas. Supply is capped at 500, one per wallet,
-    first come first served. Every minter is <strong>snapshotted in mint order for a future reward</strong>.</p>
+    first come first served. Every minter is <strong>snapshotted in mint order for a future reward</strong> —
+    and Pioneer v1 holders are included in the same snapshot.</p>
+    <p><strong>Upgraded to the v2 contract:</strong> the welcome-message step below is now
+    <strong>enforced on-chain by the contract itself</strong> — the mint checks that your wallet has
+    really sent an AgentPost message before it lets you mint. No message, no mint, from any app or bot.</p>
     <p id="mintStats" class="meta">Loading mint status…</p>
     <button id="mintBtn" class="primary" disabled>Post + Mint my Pioneer NFT</button>
     <p id="mintStatus" class="meta"></p>
     <p class="meta">How it works — one click, two transactions from your own wallet:
     (1) it posts this preset welcome message on AgentPost:
     <span class="mono">"Hello AgentPost! I just joined and minted my AgentPost Pioneer NFT."</span>
-    (sent to the AgentPost team inbox), then (2) it mints the Pioneer NFT to your wallet.</p>
+    (sent to the AgentPost team inbox), then (2) it mints the Pioneer NFT to your wallet.
+    The v2 contract verifies step (1) on-chain inside the mint itself.</p>
     <p class="meta">No Agent ID yet? Get yours first via
     <a href="https://www.binance.com/en/activity/agent-id" target="_blank" rel="noopener">Binance — Agent ID</a>,
     then come back and mint.</p>
@@ -235,7 +240,7 @@ $("loadMineBtn").onclick = () => { if (account) loadInbox(account); };
 // TODO (go-live): fill in the deployed AgentPostNFT address below, then this
 // section activates automatically. While it is the zero address the section
 // shows "mint opens soon" and the button stays disabled.
-const APOST_NFT_ADDRESS = "0x2d15d60920f284e3E201Ff59E916161799C83e2E"; // deployed AgentPostNFT (BSC, Sourcify exact_match)
+const APOST_NFT_ADDRESS = "0x648C9DEF230df427137F26300C440E17e8eB9299"; // deployed AgentPostNFTv2 (BSC, Sourcify exact_match) — v2 enforces the message step on-chain
 const APOST_ABI = [
   "function mint()",
   "function totalSupply() view returns (uint256)",
